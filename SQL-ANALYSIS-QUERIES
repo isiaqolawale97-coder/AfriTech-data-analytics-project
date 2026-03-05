@@ -1,0 +1,247 @@
+--Table Creation
+ CREATE TABLE afriTechData(
+     CustomerID TEXT,
+	 CustomerName TEXT,
+	 Region TEXT,
+	 Age INT,
+	 CustomerType TEXT,
+	 TransactionDate DATE,
+	 ProductPurchased TEXT,
+	 PurchaseAmount NUMERIC(10,2),
+	 ProductRecalled BOOLEAN,
+	 InteractionDate DATE,
+	 Platform TEXT,
+	 EngagementLikes INT,
+	 EngagemenShares INT,
+	 EngagementComments INT,
+	 BrandMention BOOLEAN,
+	 CompetitionMention BOOLEAN,
+	 Sentiment TEXT,
+	 CrisisEventTime DATE,
+	 FirstResponseTime DATE,
+	 ResolutionStatus BOOLEAN);
+
+ALTER TABLE AfriTechData RENAME COLUMN CompetitionMention TO CompetitorMention;
+ALTER TABLE AfriTechData RENAME COLUMN  EngagemenShares TO EngagementShares;
+   
+SELECT * FROM afritechdata;
+
+
+-- Data Normalization
+-- Customer Table
+CREATE TABLE CustomerData(
+     CustomerID TEXT,
+	 CustomerName TEXT,
+	 Region TEXT,
+	 Age INT,
+	 CustomerType TEXT);
+
+	 ALTER TABLE customerdata ADD PRIMARY KEY (customerID);
+
+-- Transation Table
+CREATE TABLE TransactionDATA(
+    TransactionID SERIAL PRIMARY KEY,
+	CustomerID TEXT,
+	TransactionDate DATE,
+	 ProductPurchased TEXT,
+	 PurchaseAmount NUMERIC(10,2),
+	 ProductRecalled BOOLEAN,
+	 FOREIGN KEY (CustomerID) REFERENCES CustomerData(CustomerID)
+);
+
+-- Social Media Table
+CREATE TABLE SocialMedia(
+    PostID SERIAL PRIMARY KEY,
+	CustomerID TEXT,
+	InteractionDate DATE,
+	 Platform TEXT,
+	 EngagementLikes INT,
+	 EngagementShares INT,
+	 EngagementComments INT,
+	 BrandMention BOOLEAN,
+	 CompetitorMention BOOLEAN,
+	 Sentiment TEXT,
+	 CrisisEventTime DATE,
+	 FirstResponseTime DATE,
+	 ResolutionStatus BOOLEAN,
+	 FOREIGN KEY (CustomerID) REFERENCES CustomerData(CustomerID)
+);    
+
+SELECT * FROM SocialMedia
+
+-- Add data into tables 
+-- customer
+INSERT INTO CustomerData(CustomerID,CustomerName,Region,Age,CustomerType)
+SELECT DISTINCT CustomerID,CustomerName,Region,Age,CustomerType
+FROM AfriTechData;
+
+SELECT * from customerdata
+
+--Transactions
+INSERT INTO TransactionDATA(CustomerID,TransactionDate,ProductPurchased,PurchaseAmount,ProductRecalled)
+SELECT CustomerID,TransactionDate,ProductPurchased,PurchaseAmount,ProductRecalled
+FROM AfriTechData
+WHERE TransactionDate IS NOT NULL;
+
+SELECT * FROM TransactionDATA
+
+--Social Media
+INSERT INTO SocialMedia(CustomerID,InteractionDate,Platform,EngagementLikes,
+            EngagementShares,EngagementComments,BrandMention,CompetitorMention,
+            Sentiment,CrisisEventTime,FirstResponseTime,ResolutionStatus)
+SELECT	 CustomerID,InteractionDate,Platform,EngagementLikes,
+            EngagementShares,EngagementComments,BrandMention,CompetitorMention,
+            Sentiment,CrisisEventTime,FirstResponseTime,ResolutionStatus
+FROM AfriTechData;			
+
+SELECT * FROM SocialMedia
+
+--check for duplicates
+SELECT CustomerID,COUNT (*) FROM CustomerData
+GROUP BY CustomerID
+HAVING COUNT(*)>1
+
+--Check for nulls
+SELECT COUNT (*) AS null_count FROM Socialmedia
+WHERE CrisisEventTime IS NOT NULL;
+
+
+--Exploratory Data Analysis
+--likes across platform
+SELECT Platform, SUM(EngagementLikes) AS Total_likes, ROUND(AVG(EngagementLikes),2) AS Average_likes FROM SocialMedia 
+GROUP BY Platform
+ORDER BY SUM(EngagementLikes);
+
+--comment across platform 
+SELECT Platform, SUM(EngagementComments) AS Total_comments, ROUND(AVG(EngagementComments),2) AS Average_Comments FROM SocialMedia 
+GROUP BY Platform
+ORDER BY SUM(EngagementComments);
+
+--Shares across platform
+SELECT Platform, SUM(EngagementShares) AS Total_shares, ROUND(AVG(EngagementShares),2) AS Average_Shares FROM SocialMedia 
+GROUP BY Platform
+ORDER BY SUM(EngagementShares);
+
+--sentiment distribution 
+SELECT Platform,Sentiment, COUNT (*) AS Sentiment_count FROM SocialMedia
+GROUP BY Platform,Sentiment
+ORDER BY Platform;
+
+--Month by Month breakdown of likes,comments and shares
+SELECT EXTRACT (MONTH FROM InteractionDate) AS MONTH,
+   SUM(EngagementLikes) AS total_likes, 
+   SUM(EngagementComments) AS total_comments, 
+   SUM(EngagementShares) AS total_shares
+FROM socialmedia
+GROUP BY EXTRACT (MONTH FROM InteractionDate)
+ORDER BY EXTRACT (MONTH FROM InteractionDate);
+
+
+SELECT To_char(InteractionDate,'mon') AS MONTH,
+   SUM(EngagementLikes) AS total_likes, 
+   SUM(EngagementComments) AS total_comments, 
+   SUM(EngagementShares) AS total_shares
+FROM socialmedia
+GROUP BY To_char(InteractionDate,'mon'), EXTRACT (MONTH FROM InteractionDate)
+ORDER BY EXTRACT (MONTH FROM InteractionDate);
+
+
+--Brand mention vs competitor mentions 
+      SELECT SUM(CASE
+      WHEN brandmention ='true' THEN 1
+	  ELSE 0
+	  END)AS BrandMentionCount,
+	  SUM(CASE
+	  WHEN Competitormention ='true' THEN 1
+	  ELSE 0
+	  END)AS CompetitormentionCount 
+from SocialMedia;
+
+--sentiment brand mention vs competitor mention 
+ SELECT sentiment, SUM(CASE
+      WHEN brandmention ='true' THEN 1
+	  ELSE 0
+	  END)AS BrandMentionCount,
+	  SUM(CASE
+	  WHEN Competitormention ='true' THEN 1
+	  ELSE 0
+	  END)AS CompetitormentionCount 
+from SocialMedia
+GROUP BY sentiment;
+
+--breakdown of brandmention vs competitor mention month and year 
+  SELECT EXTRACT(YEAR FROM InteractionDATE ) AS YEAR,
+         TO_CHAR(InteractionDate,'mon') AS MONTH,
+		 SUM(CASE
+		 WHEN BrandMention ='true' THEN 1
+		 ELSE 0
+		 END)AS BrandmentionCOUNT,
+		 SUM(CASE
+		 WHEN CompetitorMention ='true'THEN 1
+		 ELSE 0
+		 END) AS competitormentionCount
+ FROM SocialMedia
+ GROUP BY EXTRACT(YEAR FROM InteractionDATE),TO_CHAR(InteractionDate,'mon')
+ ORDER BY EXTRACT(YEAR FROM InteractionDate);
+
+ --Brand mention and competitormention on platform
+  SELECT platform, SUM(CASE
+      WHEN brandmention ='true' THEN 1
+	  ELSE 0
+	  END)AS BrandMentionCount,
+	  SUM(CASE
+	  WHEN Competitormention ='true' THEN 1
+	  ELSE 0
+	  END)AS CompetitormentionCount 
+from SocialMedia
+GROUP BY platform;
+
+--responsetime
+SELECT Firstresponsetime - crisiseventtime  FROM SocialMedia
+WHERE Firstresponsetime IS NOT NULL;
+
+SELECT MIN(Firstresponsetime - crisiseventtime) AS Minresponsedays, 
+       MAX(Firstresponsetime - crisiseventtime) AS MAXresponsedays,
+	   ROUND(AVG(Firstresponsetime - crisiseventtime),0) AS AVGresponsedays,
+	   percentile_cont(0.5) WITHIN GROUP (ORDER BY Firstresponsetime-crisiseventtime)
+FROM SocialMedia;
+
+--Resolution status
+SELECT resolutionstatus,count(*) FROM SocialMedia
+WHERE resolutionstatus IS NOT NULL
+GROUP BY resolutionstatus;
+
+
+--customerData 
+--total number of customers
+SELECT COUNT(CustomerID) AS Totalcustomer FROM CustomerDATA;
+
+--CUSTOMER REGION
+SELECT region,COUNT(*) AS Customer_count FROM CustomerData
+GROUP BY Region
+ORDER BY COUNT(*) DESC;
+
+--AGE(highest,lowest,average)
+SELECT MIN(age) AS lowest_age,
+       MAX(age) AS highest_age,
+	  Round(AVG(age),0) AS AVG_age
+FROM CustomerData;
+	   
+--customer type breakdown
+SELECT Customertype,COUNT(*) AS Customercount FROM CustomerData
+GROUP BY Customertype;
+
+--Transaction data 
+--PRODUCT RECALL
+SELECT ProductRecalled,COUNT (*) AS Product_recall, SUM(purchaseamount) AS Totalamount FROM TransactionData
+GROUP BY ProductRecalled;
+
+
+--region and product recall
+SELECT Region,COUNT(*) Recall_count FROM CustomerData
+JOIN TransactionData ON CustomerData.customerID=TransactionData.CustomerID
+WHERE Productrecalled ='true'
+GROUP BY Region 
+ORDER BY COUNT(*)DESC;
+
+
